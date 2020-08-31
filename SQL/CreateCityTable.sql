@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS City;
+
+CREATE TABLE City(
+	Id INTEGER PRIMARY KEY AUTOINCREMENT,
+	[Name] TEXT NOT NULL,
+	StateId TEXT NOT NULL,				-- Foreign Key
+	Active INTEGER NOT NULL,				-- Boolean
+	ModifiedDt INTEGER NOT NULL,            -- DateTime(YYYY-MM-DD HH:MM:SS.SSS)
+	CreateDt INTEGER NOT NULL,              -- DateTime(YYYY-MM-DD HH:MM:SS.SSS)
+	FOREIGN KEY(StateId) REFERENCES State(Id)
+ );
+ 

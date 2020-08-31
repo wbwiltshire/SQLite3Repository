@@ -1,0 +1,59 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30413.136
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Regression.Test", "Regression.Test\Regression.Test.csproj", "{602CDE21-30D3-4377-98FA-228EFDF1255D}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Data", "Data\Data.csproj", "{CF657A67-AB98-4945-BEA2-A0BA5339FC25}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SQL", "SQL", "{A6109BF0-B9F5-4594-A33F-D05C25DAE5DF}"
+	ProjectSection(SolutionItems) = preProject
+		SQL\CreateCityTable.sql = SQL\CreateCityTable.sql
+		SQL\CreateContactTable.sql = SQL\CreateContactTable.sql
+		SQL\CreateStateTable.sql = SQL\CreateStateTable.sql
+		SQL\Queries.sql = SQL\Queries.sql
+		SQL\Reload-Tables.ps1 = SQL\Reload-Tables.ps1
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{5335AEF6-B438-46A2-8977-AB64AA9E0864}"
+	ProjectSection(SolutionItems) = preProject
+		README.md = README.md
+		RunRegressionTest.cmd = RunRegressionTest.cmd
+		XUnitSummary.ps1 = XUnitSummary.ps1
+	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "POCO", "POCO\POCO.csproj", "{FD9FBE45-DCB5-49C4-872F-EF20ED1F0755}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Repository", "Repository\Repository.csproj", "{95E8C5F0-D376-4227-8723-945A161F527F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{602CDE21-30D3-4377-98FA-228EFDF1255D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{602CDE21-30D3-4377-98FA-228EFDF1255D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{602CDE21-30D3-4377-98FA-228EFDF1255D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{602CDE21-30D3-4377-98FA-228EFDF1255D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CF657A67-AB98-4945-BEA2-A0BA5339FC25}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CF657A67-AB98-4945-BEA2-A0BA5339FC25}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CF657A67-AB98-4945-BEA2-A0BA5339FC25}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CF657A67-AB98-4945-BEA2-A0BA5339FC25}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FD9FBE45-DCB5-49C4-872F-EF20ED1F0755}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FD9FBE45-DCB5-49C4-872F-EF20ED1F0755}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FD9FBE45-DCB5-49C4-872F-EF20ED1F0755}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FD9FBE45-DCB5-49C4-872F-EF20ED1F0755}.Release|Any CPU.Build.0 = Release|Any CPU
+		{95E8C5F0-D376-4227-8723-945A161F527F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{95E8C5F0-D376-4227-8723-945A161F527F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{95E8C5F0-D376-4227-8723-945A161F527F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{95E8C5F0-D376-4227-8723-945A161F527F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {39500DEA-2E63-4856-A360-54A1886362C6}
+	EndGlobalSection
+EndGlobal

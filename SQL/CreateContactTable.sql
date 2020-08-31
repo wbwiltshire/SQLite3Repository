@@ -1,0 +1,22 @@
+DROP TABLE IF EXISTS Contact;
+
+CREATE TABLE Contact(
+	Id INTEGER PRIMARY KEY AUTOINCREMENT,
+	FirstName TEXT NOT NULL,
+	LastName TEXT NOT NULL,
+	Address1 TEXT NULL,
+	Address2 TEXT NULL,
+	Notes TEXT NULL,
+	ZipCode TEXT NULL,
+	HomePhone TEXT NULL,
+	WorkPhone TEXT NULL,
+	CellPhone TEXT NULL,
+	EMail TEXT NULL,
+	CityId INTEGER NOT NULL ,
+	Active INTEGER NOT NULL,          -- Boolean
+	ModifiedDt INTEGER NOT NULL,      -- DateTime(YYYY-MM-DD HH:MM:SS.SSS)
+	CreateDt INTEGER NOT NULL,        -- DateTime(YYYY-MM-DD HH:MM:SS.SSS)
+    FOREIGN KEY(CityId) REFERENCES City(Id)	
+);
+
+
