@@ -44,9 +44,9 @@ namespace SQLite3Repository.Data.POCO
         [Display(Name = "Active")]
         public int Active { get; set; }
         [Display(Name = "Modified Date")]
-        public double ModifiedDt { get; set; }
+        public DateTime ModifiedDt { get; set; }
         [Display(Name = "Create Date")]
-        public double CreateDt { get; set; }
+        public DateTime CreateDt { get; set; }
         public Contact()
         {
             PK = new PrimaryKey() { Key = -1, IsIdentity = true };
@@ -109,9 +109,9 @@ namespace SQLite3Repository.Data.POCO
                 ordinal = reader.GetOrdinal("Active");
                 contact.Active = reader.GetInt32(ordinal);
                 ordinal = reader.GetOrdinal("ModifiedDt");
-                contact.ModifiedDt = reader.GetDouble(ordinal);
+                contact.ModifiedDt = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc).AddSeconds(reader.GetInt64(ordinal));
                 ordinal = reader.GetOrdinal("CreateDt");
-                contact.CreateDt = reader.GetDouble(ordinal);
+                contact.CreateDt = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc).AddSeconds(reader.GetInt64(ordinal));
             }
             catch (Exception ex)
             {
@@ -141,9 +141,9 @@ namespace SQLite3Repository.Data.POCO
                     StateId = reader.GetString(reader.GetOrdinal("StateId")),
                     State = new State { PK = new PrimaryKey { Key = reader.GetString(13), IsIdentity = false }, Name = reader.GetString(reader.GetOrdinal("StateName")) }
                 };
-                contact.Active = reader.GetInt32(15);
-                contact.ModifiedDt = reader.GetDouble(16);
-                contact.CreateDt = reader.GetDouble(17);
+                //contact.Active = reader.GetInt32(15);
+                //contact.ModifiedDt = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc).AddSeconds(reader.GetInt64(16));
+                //contact.CreateDt = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc).AddSeconds(reader.GetInt64(17));
             }
             catch (Exception ex)
             {

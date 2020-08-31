@@ -15,6 +15,7 @@ Notes
 1.  XUnit is used as the testing framework
 1.  INSERT should be followed by SELECT last_insert_rowid() for tables with IDENTITY as their Primary Key
 1.  Returning Pages of data is accomplished via the LIMIT and OFFSET keywords: SELECT Id FROM [table] LIMIT 10 OFFSET 0;
+1.  SQLite3 does NOT support Stored Procedures
 
 SQLite DateTime and POCOs
 ---
@@ -34,3 +35,4 @@ Links
   *  [SQLite3 In-memory databases](https://docs.microsoft.com/en-us/dotnet/standard/data/sqlite/in-memory-databases)
   *  [SQLite3 Command-line Shell download](https://www.sqlite.org/2020/sqlite-tools-win32-x86-3330000.zip)
   *  [SQLite3 Date and Time Functions](https://www.sqlite.org/lang_datefunc.html)
+  *  [SQLite3 Dates Tutorial](https://www.sqlitetutorial.net/sqllite-date)

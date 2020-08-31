@@ -44,14 +44,14 @@ namespace Regression.Test
 		public void FindAllTest()
 		{
 			Assert.NotNull(dbc = new DBContext(settings.Database.ConnectionString, logger));
-			//ContactRepository contactRepos = new ContactRepository(settings, logger, dbc);
-			//CityRepository cityRepos = new CityRepository(settings, logger, dbc);
+			ContactRepository contactRepos = new ContactRepository(settings, logger, dbc);
+			CityRepository cityRepos = new CityRepository(settings, logger, dbc);
 			StateRepository stateRepos = new StateRepository(settings, logger, dbc);
 
-			//ICollection<Contact> contacts = await contactRepos.FindAll();
-			//Assert.NotEmpty(contacts);
-			//ICollection<City> cities = await cityRepos.FindAll();
-			//Assert.NotEmpty(cities);
+			ICollection<Contact> contacts = contactRepos.FindAll();
+			Assert.NotEmpty(contacts);
+			ICollection<City> cities = cityRepos.FindAll();
+			Assert.NotEmpty(cities);
 			ICollection<State> states = stateRepos.FindAll();
 			Assert.NotEmpty(states);
 
@@ -62,15 +62,67 @@ namespace Regression.Test
 		public void FindAllPagedTest()
 		{
 			Assert.NotNull(dbc = new DBContext(settings.Database.ConnectionString, logger));
-			//ContactRepository contactRepos = new ContactRepository(settings, logger, dbc);
-			//CityRepository cityRepos = new CityRepository(settings, logger, dbc);
+			ContactRepository contactRepos = new ContactRepository(settings, logger, dbc);
+			CityRepository cityRepos = new CityRepository(settings, logger, dbc);
 			StateRepository stateRepos = new StateRepository(settings, logger, dbc);
 
+			IPager<Contact> contacts = contactRepos.FindAll(new Pager<Contact>() { PageNbr = 1, PageSize = 5 });
+			Assert.NotNull(contacts);
+			Assert.True(contacts.Entities.Count == 5);
+			Assert.True(contacts.RowCount > 0);
+			Assert.NotNull(contacts.Entities);
+			IPager<City> cities = cityRepos.FindAll(new Pager<City>() { PageNbr = 1, PageSize = 5 });
+			Assert.NotNull(cities.Entities);
+			Assert.True(cities.Entities.Count == 5);
+			Assert.True(cities.RowCount > 0);
+			Assert.NotNull(cities.Entities);
 			IPager<State> states = stateRepos.FindAll(new Pager<State>() { PageNbr = 1, PageSize = 5 });
 			Assert.NotNull(states.Entities);
 			Assert.True(states.Entities.Count == 5);
 			Assert.True(states.RowCount > 0);
 			Assert.NotNull(states.Entities);
+		}
+
+		[Fact]
+		public void FindAllViewTest()
+		{
+			Assert.NotNull(dbc = new DBContext(settings.Database.ConnectionString, logger));
+			ContactRepository contactRepos = new ContactRepository(settings, logger, dbc);
+			CityRepository cityRepos = new CityRepository(settings, logger, dbc);
+
+			ICollection<Contact> contacts = contactRepos.FindAllView();
+			Assert.NotEmpty(contacts);
+			Assert.NotNull(contacts.FirstOrDefault().City);
+			Assert.NotNull(contacts.FirstOrDefault().City.State);
+			ICollection<City> cities = cityRepos.FindAllView();
+			Assert.NotEmpty(cities);
+			Assert.NotNull(cities.FirstOrDefault().State);
+
+			dbc.Close();
+		}
+
+		[Fact]
+		public void FindAllViewPagedTest()
+		{
+			Assert.NotNull(dbc = new DBContext(settings.Database.ConnectionString, logger));
+			ContactRepository contactRepos = new ContactRepository(settings, logger, dbc);
+			CityRepository cityRepos = new CityRepository(settings, logger, dbc);
+
+			IPager<Contact> contacts = contactRepos.FindAllView(new Pager<Contact>() { PageNbr = 1, PageSize = 5 });
+			Assert.NotEmpty(contacts.Entities);
+			Assert.True(contacts.Entities.Count == 5);
+			Assert.True(contacts.RowCount > 0);
+			Assert.NotNull(contacts.Entities);
+			Assert.NotNull(contacts.Entities.FirstOrDefault().City);
+			Assert.NotNull(contacts.Entities.FirstOrDefault().City.State);
+			IPager<City> cities = cityRepos.FindAllView(new Pager<City>() { PageNbr = 1, PageSize = 5 });
+			Assert.NotEmpty(cities.Entities);
+			Assert.True(cities.Entities.Count == 5);
+			Assert.True(cities.RowCount > 0);
+			Assert.NotNull(cities.Entities);
+			Assert.NotNull(cities.Entities.FirstOrDefault().State);
+
+			dbc.Close();
 		}
 
 		[Fact]
@@ -81,6 +133,73 @@ namespace Regression.Test
 
 			State state = repos.FindByPK(new PrimaryKey() { Key = "FL" });
 			Assert.NotNull(state);
+
+			dbc.Close();
+		}
+
+		[Fact]
+		public void FindByPKNumericTest()
+		{
+			Assert.NotNull(dbc = new DBContext(settings.Database.ConnectionString, logger));
+			ContactRepository contactRepos = new ContactRepository(settings, logger, dbc);
+			CityRepository cityRepos = new CityRepository(settings, logger, dbc);
+
+			Contact contact = contactRepos.FindByPK(new PrimaryKey() { Key = 1 });
+			Assert.NotNull(contact);
+			City city = cityRepos.FindByPK(new PrimaryKey() { Key = 1 });
+			Assert.NotNull(city);
+		}
+
+		[Fact]
+		public void FindByPKViewTest()
+		{
+			Assert.NotNull(dbc = new DBContext(settings.Database.ConnectionString, logger));
+			ContactRepository repos = new ContactRepository(settings, logger, dbc);
+
+			Contact contact = repos.FindViewByPK(new PrimaryKey() { Key = 1 });
+			Assert.NotNull(contact);
+			Assert.True(contact.Id == 1);
+			Assert.NotNull(contact.City);
+			Assert.NotNull(contact.City.State);
+
+			dbc.Close();
+		}
+
+		[Fact]
+		public void ExecNonQueryTest()
+		{
+			Assert.NotNull(dbc = new DBContext(settings.Database.ConnectionString, logger));
+			ContactRepository repos = new ContactRepository(settings, logger, dbc);
+
+			Assert.True(repos.NonQuery() > 1);
+
+			dbc.Close();
+		}
+
+		[Fact]
+		public void ExecJSONQueryTest()
+		{
+			string stateJson = String.Empty;
+			ICollection<State> states = null;
+
+			Assert.NotNull(dbc = new DBContext(settings.Database.ConnectionString, logger));
+			StateRepository stateRepos = new StateRepository(settings, logger, dbc);
+
+			stateJson = stateRepos.GetJSON();
+			states = JsonConvert.DeserializeObject<List<State>>(stateJson);
+			Assert.NotNull(states);
+			Assert.True(states.Count > 0);
+			dbc.Close();
+		}
+
+		[Fact]
+		public void ExecStoredProcTest()
+		{
+			Assert.NotNull(dbc = new DBContext(settings.Database.ConnectionString, logger));
+			ContactRepository contactRepos = new ContactRepository(settings, logger, dbc);
+
+			//Assert.True(contactRepos.StoredProc(1) == 1);
+			// SQLite does not support Stored Procedures
 
 			dbc.Close();
 		}
@@ -103,13 +222,6 @@ namespace Regression.Test
 			states = stateRepos.FindAll().Where(s => s.CreateDt > beginTestDate && s.CreateDt < endTestDate).ToList();
 			Assert.NotNull(states);
 
-		}
-
-		// Helper methods
-		public DateTime ToDateTime(double sqliteDate)
-		{
-			DateTime dt = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
-			return dt.AddSeconds(sqliteDate).ToLocalTime();
 		}
 
 	}

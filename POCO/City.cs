@@ -27,8 +27,8 @@ namespace SQLite3Repository.Data.POCO
         public string Name { get; set; }
         public string StateId { get; set; }
         public int Active { get; set; }
-        public double ModifiedDt { get; set; }
-        public double CreateDt { get; set; }
+        public DateTime ModifiedDt { get; set; }
+        public DateTime CreateDt { get; set; }
         public City()
         {
             PK = new PrimaryKey() { Key = -1, IsIdentity = true };
@@ -64,9 +64,9 @@ namespace SQLite3Repository.Data.POCO
 				ordinal = reader.GetOrdinal("Active");
 				city.Active = reader.GetInt32(ordinal);
 				ordinal = reader.GetOrdinal("ModifiedDt");
-				city.ModifiedDt = reader.GetDouble(ordinal);
-				ordinal = reader.GetOrdinal("CreateDt");
-				city.CreateDt = reader.GetDouble(ordinal);
+				city.ModifiedDt = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc).AddSeconds(reader.GetInt64(ordinal));
+                ordinal = reader.GetOrdinal("CreateDt");
+				city.CreateDt = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc).AddSeconds(reader.GetInt64(ordinal));
             }
             catch (Exception ex)
             {

@@ -12,6 +12,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SQL", "SQL", "{A6109BF0-B9F
 		SQL\CreateCityTable.sql = SQL\CreateCityTable.sql
 		SQL\CreateContactTable.sql = SQL\CreateContactTable.sql
 		SQL\CreateStateTable.sql = SQL\CreateStateTable.sql
+		SQL\CreateViews.sql = SQL\CreateViews.sql
 		SQL\Queries.sql = SQL\Queries.sql
 		SQL\Reload-Tables.ps1 = SQL\Reload-Tables.ps1
 	EndProjectSection

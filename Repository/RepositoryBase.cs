@@ -103,6 +103,40 @@ namespace SQLite3Repository.Data.Repository
         }
         #endregion
 
+        #region FindAllPaged
+        public virtual ICollection<TEntity> FindAllPaged(int offset, int pageSize)
+        {
+            try
+            {
+                if (dbc.Connection.State != ConnectionState.Open)
+                    dbc.Open();
+
+                using (SqliteCommand cmd = new SqliteCommand(CMDText, dbc.Connection))
+                {
+                    cmd.CommandType = CommandType.StoredProcedure;
+                    cmd.Parameters.Add(new SqliteParameter("@p1", offset));
+                    cmd.Parameters.Add(new SqliteParameter("@p2", pageSize));
+
+                    using (SqliteDataReader reader = cmd.ExecuteReader())
+                    {
+                        ICollection<TEntity> entities = new List<TEntity>();
+                        while (reader.Read())
+                        {
+                            entities.Add(MapToObject.Execute(reader));
+                        }
+                        logger.LogInformation($"FindAllPaged complete for {typeof(TEntity)} entity.");
+                        return entities;
+                    }
+                }
+            }
+            catch (SqliteException ex)
+            {
+                logger.LogError(ex.Message);
+                return null;
+            }
+        }
+        #endregion
+
         #region FindByPK
         public virtual TEntity FindByPK(IPrimaryKey pk)
         {
@@ -260,6 +294,82 @@ namespace SQLite3Repository.Data.Repository
             }
             logger.LogInformation($"Delete complete for {typeof(TEntity)} entity.");
             return rows;
+        }
+        #endregion
+
+        #region ExecNonQuery
+        protected int ExecNonQuery(IList<SqliteParameter> p)
+        {
+            int rows = 0;
+
+            try
+            {
+                if (dbc.Connection.State != ConnectionState.Open)
+                    dbc.Open();
+
+                using (SqliteCommand cmd = new SqliteCommand(CMDText, dbc.Connection))
+                {
+                    if (SqlCommandType == Constants.DBCommandType.SPROC)
+                        cmd.CommandType = CommandType.StoredProcedure;
+
+                    foreach (SqliteParameter s in p)
+                        cmd.Parameters.Add(s);
+
+                    //Returns an object, not an int
+                    rows = cmd.ExecuteNonQuery();
+                    logger.LogInformation("ExecNonQuery complete.");
+                }
+            }
+            catch (SqliteException ex)
+            {
+                logger.LogError(ex.Message);
+                rows = 0;
+            }
+
+            return rows;
+        }
+        #endregion
+
+        #region ExecJSONQuery
+        protected string ExecJSONQuery(IList<SqliteParameter> parms)
+        {
+            string result = String.Empty;
+
+            try
+            {
+                if (dbc.Connection.State != ConnectionState.Open)
+                    dbc.Open();
+
+                using (SqliteCommand cmd = new SqliteCommand(CMDText, dbc.Connection))
+                {
+                    if (SqlCommandType == Constants.DBCommandType.SPROC)
+                        cmd.CommandType = CommandType.StoredProcedure;
+
+                    foreach (SqliteParameter parm in parms)
+                        cmd.Parameters.Add(parm);
+
+                    using (SqliteDataReader reader = cmd.ExecuteReader())
+                    {
+                        //Returns a string
+                        while (reader.Read())
+                            result += reader.GetString(0);
+                    }
+                    logger.LogInformation("ExecJSONQuery complete.");
+                    return result;
+                }
+            }
+            catch (SqliteException ex)
+            {
+                logger.LogError(ex.Message);
+                return "{}";
+            }
+        }
+        #endregion
+
+        #region ExecStoredProc
+        protected int ExecStoredProc(IList<SqliteParameter> p)
+        {
+            throw new NotImplementedException();
         }
         #endregion
     }

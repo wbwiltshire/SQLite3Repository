@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Text;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using SQLite3Repository.Data;
 using SQLite3Repository.Data.Interfaces;
@@ -14,7 +15,7 @@ namespace SQLite3Repository.Data.Repository
 	{
 		private const string FINDALLCOUNT_STMT = "SELECT COUNT(Id) FROM State WHERE Active=1;";
 		private const string FINDALL_STMT = "SELECT Id,Name,Active,ModifiedDt,CreateDt FROM State WHERE Active=1;";
-        private const string FINDALLPAGER_STMT = "SELECT Id,Name,Active,ModifiedDt,CreateDt FROM State WHERE Active=1 ORDER BY Id LIMIT {1} OFFSET {0};";
+        private const string FINDALLPAGER_STMT = "SELECT Id,Name,Active,ModifiedDt,CreateDt FROM State WHERE Active=1 ORDER BY Id LIMIT {0} OFFSET {1};";
         private const string FINDBYPK_STMT = "SELECT Id, Name, Active, ModifiedDt, CreateDt FROM State WHERE Id =@pk AND Active=1;";
         private const string ADD_STMT = "INSERT INTO State (Id,[Name],Active,ModifiedDt,CreateDt) VALUES(@pk, @p1, 1, strftime('%s','now'), strftime('%s','now'));";
         private const string UPDATE_STMT = "UPDATE State SET Name=@p1, ModifiedDt=strftime('%s','now') WHERE Id =@pk AND Active=1";
@@ -22,6 +23,8 @@ namespace SQLite3Repository.Data.Repository
         private const string ORDERBY_STMT = " ORDER BY ";
         private const string ADD_PROC = "uspAddState";
         private const string UPDATE_PROC = "uspUpdateState";
+        private const string JSON_PROC = "uspFindAllCityJson";
+        private const string JSON_STMT = "SELECT json_group_array(json_object('Id', Id, 'Name', [Name], 'Active', Active, 'ModifiedDt', datetime(ModifiedDt,'unixepoch'), 'CreateDt', datetime(CreateDt,'unixepoch'))) AS json_result FROM (SELECT Id,[Name],Active,ModifiedDt,CreateDt FROM State ORDER BY Id);";
 
         private ILogger logger;
 
@@ -51,9 +54,10 @@ namespace SQLite3Repository.Data.Repository
             MapToObject = new StateMapToObject(logger);
             return base.FindAll();
         }
-		#endregion
+        #endregion
 
-		public IPager<State> FindAll(IPager<State> pager)
+        #region FindAll(IPager)
+        public IPager<State> FindAll(IPager<State> pager)
 		{
             SqlCommandType = Constants.DBCommandType.SQL;
             CMDText = String.Format(FINDALLPAGER_STMT, pager.PageSize, pager.PageSize * pager.PageNbr);
@@ -64,9 +68,10 @@ namespace SQLite3Repository.Data.Repository
             pager.RowCount = base.FindAllCount();
             return pager;
         }
+		#endregion
 
-        #region FindByPK(IPrimaryKey pk)
-        public override State FindByPK(IPrimaryKey pk)
+		#region FindByPK(IPrimaryKey pk)
+		public override State FindByPK(IPrimaryKey pk)
 		{
             SqlCommandType = Constants.DBCommandType.SQL;
             CMDText = FINDBYPK_STMT;
@@ -129,6 +134,27 @@ namespace SQLite3Repository.Data.Repository
             CMDText = DELETE_STMT;
             return base.Delete(pk);
         }
-		#endregion
-	}
+        #endregion
+
+        #region GetJSON
+        public string GetJSON()
+        {
+            string storedProcedure = String.Empty;
+            IList<SqliteParameter> parms = new List<SqliteParameter>();
+
+            storedProcedure = Settings.Database.StoredProcedures.FirstOrDefault(p => p == JSON_PROC);
+            if (storedProcedure == null)
+            {
+                SqlCommandType = Constants.DBCommandType.SQL;
+                CMDText = JSON_STMT;
+            }
+            else
+            {
+                SqlCommandType = Constants.DBCommandType.SPROC;
+                CMDText = storedProcedure;
+            }
+            return ExecJSONQuery(parms);
+        }
+        #endregion
+    }
 }
