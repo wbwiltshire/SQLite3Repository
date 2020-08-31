@@ -25,7 +25,7 @@ namespace SQLite3Repository.Data.Repository
 
         public bool Enlist()
         {
-            string CMDText = "SET XACT_ABORT ON; BEGIN TRAN T1;";
+            string CMDText = "BEGIN DEFERRED TRANSACTION;";
             int rows;
 
             transactionCount++;
@@ -50,7 +50,7 @@ namespace SQLite3Repository.Data.Repository
 
         public bool Save()
         {
-            CMDText = "COMMIT TRAN T1;";
+            CMDText = "COMMIT TRANSACTION;";
             bool status = false;
             int rows;
 
@@ -87,7 +87,7 @@ namespace SQLite3Repository.Data.Repository
 
         public bool Rollback()
         {
-            CMDText = "ROLLBACK TRAN T1;";
+            CMDText = "ROLLBACK TRANSACTION;";
             bool status = false;
             int rows;
 

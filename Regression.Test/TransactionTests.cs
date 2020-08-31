@@ -27,6 +27,19 @@ namespace Regression.Test
         }
 
         [Fact]
+        public void UOWConnectionTest()
+        {
+            //You can also use a 'using' statement block
+            using (DBContext db = new DBContext(settings.Database.ConnectionString, logger))
+            {
+                Assert.NotNull(db);
+                UnitOfWork uow = new UnitOfWork(db, logger);
+                Assert.True(db.Open());
+                Assert.True(db.Connection.State == ConnectionState.Open);
+            }
+        }
+
+        [Fact]
         public void UpdateTest()
         {
             string oldString = String.Empty;
@@ -182,6 +195,70 @@ namespace Regression.Test
                 state = stateRepos.FindByPK(new PrimaryKey() { Key = "WA" });
                 Assert.Null(state);
                 #endregion
+            }
+        }
+
+        [Fact]
+        public void SaveTest()
+        {
+            string updateString = "Save this update.";
+            Contact newContact = new Contact()
+            {
+                FirstName = "New",
+                LastName = "SaveUser",
+                Address1 = "Address1",
+                Address2 = "Address2",
+                CellPhone = "8005551212",
+                HomePhone = "8005551212",
+                WorkPhone = "8005551212",
+                Notes = String.Empty,
+                ZipCode = "99999",
+                EMail = "NewSaveUser@Mail.com",
+                CityId = 1
+            };
+
+            using (DBContext db = new DBContext(settings.Database.ConnectionString, logger))
+            {
+                Assert.NotNull(db);
+                UnitOfWork uow = new UnitOfWork(db, logger);
+                ContactRepository repos = new ContactRepository(settings, logger, uow, db);
+
+                Contact contact = repos.FindByPK(new PrimaryKey() { Key = 11 });
+                contact.Notes = updateString;
+                int rows = repos.Update(contact);
+                Assert.Equal(1, rows);
+                ICollection<Contact> contacts = repos.FindAll();
+                Assert.Null(contacts.Where(c => c.LastName == newContact.LastName && c.FirstName == newContact.FirstName).FirstOrDefault());
+                int key = (int)repos.Add(newContact);
+                Assert.True(uow.Save());
+                contact = repos.FindByPK(new PrimaryKey() { Key = 11 });
+                Assert.Equal(contact.Notes, updateString);
+                Assert.True(key > 0);
+                Assert.NotNull(repos.FindByPK(new PrimaryKey() { Key = key }));
+
+            }
+        }
+
+        [Fact]
+        public void RollBackTest()
+        {
+            string updateString = "Rollback this update.";
+            string oldNotes = String.Empty;
+
+            using (DBContext db = new DBContext(settings.Database.ConnectionString, logger))
+            {
+                Assert.NotNull(db);
+                UnitOfWork uow = new UnitOfWork(db, logger);
+                ContactRepository repos = new ContactRepository(settings, logger, uow, db);
+
+                Contact contact = repos.FindByPK(new PrimaryKey() { Key = 11 });
+                oldNotes = contact.Notes;
+                contact.Notes = updateString;
+                int rows = repos.Update(contact);
+                Assert.Equal(1, rows);
+                Assert.True(uow.Rollback());
+                contact = repos.FindByPK(new PrimaryKey() { Key = 11 });
+                Assert.Equal(contact.Notes, oldNotes);
             }
         }
     }
