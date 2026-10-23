@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Data;
 using Microsoft.Data.Sqlite;
-using System.Linq;
-using System.Text;
 using Microsoft.Extensions.Logging;
 using SQLite3Repository.Data;
 using SQLite3Repository.Data.Interfaces;
@@ -14,10 +12,12 @@ namespace SQLite3Repository.Data.Repository
 	public abstract class RepositoryBase<TEntity>
 	   where TEntity : class
 	{
+        private const string ORDERBY_TOKEN = "@orderBy";
+        private const string DEFAULT_SORT_COLUMN = "Id";
 
-		private UnitOfWork unitOfWork;
+		private readonly UnitOfWork unitOfWork;
 		private readonly ILogger logger;
-		private DBContext dbc;
+		private readonly DBContext dbc;
 
         #region ctor
         //ctor with no unit of work necessary
@@ -25,351 +25,204 @@ namespace SQLite3Repository.Data.Repository
         {
             Settings = s;
             logger = l;
-            dbc = d;
+            dbc = d ?? throw new ArgumentNullException(nameof(d));
         }
         //ctor with unit of work
-        protected RepositoryBase(AppSettingsConfiguration s, ILogger l, UnitOfWork uow, DBContext d)
+        protected RepositoryBase(AppSettingsConfiguration s, ILogger l, UnitOfWork uow, DBContext d) :
+            this(s, l, d)
         {
-            Settings = s;
-            logger = l;
-            unitOfWork = uow;
-            dbc = d;
+            unitOfWork = uow ?? throw new ArgumentNullException(nameof(uow));
+            //The transaction belongs to the unit of work's connection
+            if (!ReferenceEquals(uow.Context, d))
+                throw new ArgumentException("The unit of work must use the same DBContext as the repository.", nameof(uow));
         }
         #endregion
 
-        public string OrderBy { get; set; }
-        protected string CMDText { get; set; }
         protected AppSettingsConfiguration Settings { get; private set; }
-        protected Constants.DBCommandType SqlCommandType { get; set; }
-        protected MapToObjectBase<TEntity> MapToObject { get; set; }
-        protected MapFromObjectBase<TEntity> MapFromObject { get; set; }
+
+        //Columns a pager may sort by. Anything else falls back to Id, so column names are never taken from the caller.
+        protected HashSet<string> SortColumns { get; set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { DEFAULT_SORT_COLUMN };
+
+        #region Sorting and Paging
+        protected string BuildOrderBy(string sortColumn, SQLOrderBy direction)
+        {
+            string safeColumnName = DEFAULT_SORT_COLUMN;
+            if (sortColumn is not null && SortColumns.TryGetValue(sortColumn, out string allowedColumn))
+                safeColumnName = allowedColumn;
+
+            //Id is a tie-breaker, so pages are deterministic for non-unique sort columns
+            string sql = $"ORDER BY {safeColumnName} " + (direction == SQLOrderBy.DESC ? "DESC" : "ASC");
+            if (safeColumnName != DEFAULT_SORT_COLUMN)
+                sql += $", {DEFAULT_SORT_COLUMN} ASC";
+            return sql;
+        }
+
+        //cmdText must contain the @orderBy token and the @pageSize and @offset parameters
+        protected IPager<TEntity> FindAllPaged(string cmdText, string countCmdText, IMapToObject<TEntity> map, IPager<TEntity> pager)
+        {
+            ArgumentNullException.ThrowIfNull(pager);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pager.PageSize, nameof(pager.PageSize));
+            ArgumentOutOfRangeException.ThrowIfNegative(pager.PageNbr, nameof(pager.PageNbr));
+
+            string pagedCmdText = cmdText.Replace(ORDERBY_TOKEN, BuildOrderBy(pager.SortColumn, pager.Direction));
+            pager.Entities = FindAll(pagedCmdText, map,
+                new SqliteParameter("@pageSize", pager.PageSize),
+                new SqliteParameter("@offset", (long)pager.PageSize * pager.PageNbr));
+            pager.RowCount = FindAllCount(countCmdText);
+            return pager;
+        }
+        #endregion
 
         #region FindAllCount
-        protected int FindAllCount()
+        protected int FindAllCount(string cmdText)
         {
-            object cnt;
-
-            try
+            return Execute("FindAllCount", cmdText, false, cmd =>
             {
-                if (dbc.Connection.State != ConnectionState.Open)
-                    dbc.Open();
-
-                using (SqliteCommand cmd = new SqliteCommand(CMDText, dbc.Connection))
-                {
-                    //Returns an object, not an int
-                    cnt = cmd.ExecuteScalar();
-                    logger.LogInformation("FindAllCount complete.");
-                    if (cnt != null)
-                        return Convert.ToInt32(cnt);
-                    else
-                        return 0;
-                }
-            }
-            catch (SqliteException ex)
-            {
-                logger.LogError(ex.Message);
-                return 0;
-            }
+                //Returns an object (long), not an int
+                object cnt = cmd.ExecuteScalar();
+                return cnt is null || cnt is DBNull ? 0 : Convert.ToInt32(cnt);
+            });
         }
         #endregion
 
         #region FindAll
-        public virtual ICollection<TEntity> FindAll()
+        protected ICollection<TEntity> FindAll(string cmdText, IMapToObject<TEntity> map, params SqliteParameter[] parms)
         {
-            try
+            return Execute("FindAll", cmdText, false, cmd =>
             {
-                if (dbc.Connection.State != ConnectionState.Open)
-                    dbc.Open();
-
-                using (SqliteCommand cmd = new SqliteCommand(CMDText, dbc.Connection))
+                cmd.Parameters.AddRange(parms);
+                using (SqliteDataReader reader = cmd.ExecuteReader())
                 {
-                    using (SqliteDataReader reader = cmd.ExecuteReader())
-                    {
-                        ICollection<TEntity> entities = new List<TEntity>();
-                        while (reader.Read())
-                        {
-                            entities.Add(MapToObject.Execute(reader));
-                        }
-                        logger.LogInformation($"FindAll complete for {typeof(TEntity)} entity.");
-                        return entities;
-                    }
+                    ICollection<TEntity> entities = new List<TEntity>();
+                    while (reader.Read())
+                        entities.Add(map.Execute(reader));
+                    return entities;
                 }
-            }
-            catch (SqliteException ex)
-            {
-                logger.LogError(ex.Message);
-                return null;
-            }
-        }
-        #endregion
-
-        #region FindAllPaged
-        public virtual ICollection<TEntity> FindAllPaged(int offset, int pageSize)
-        {
-            try
-            {
-                if (dbc.Connection.State != ConnectionState.Open)
-                    dbc.Open();
-
-                using (SqliteCommand cmd = new SqliteCommand(CMDText, dbc.Connection))
-                {
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.Parameters.Add(new SqliteParameter("@p1", offset));
-                    cmd.Parameters.Add(new SqliteParameter("@p2", pageSize));
-
-                    using (SqliteDataReader reader = cmd.ExecuteReader())
-                    {
-                        ICollection<TEntity> entities = new List<TEntity>();
-                        while (reader.Read())
-                        {
-                            entities.Add(MapToObject.Execute(reader));
-                        }
-                        logger.LogInformation($"FindAllPaged complete for {typeof(TEntity)} entity.");
-                        return entities;
-                    }
-                }
-            }
-            catch (SqliteException ex)
-            {
-                logger.LogError(ex.Message);
-                return null;
-            }
+            });
         }
         #endregion
 
         #region FindByPK
-        public virtual TEntity FindByPK(IPrimaryKey pk)
+        protected TEntity FindByPK(string cmdText, IMapToObject<TEntity> map, IPrimaryKey pk)
         {
-            int idx = 1;
-            TEntity entity = null;
-
-            try
+            return Execute("FindByPK", cmdText, false, cmd =>
             {
-                if (dbc.Connection.State != ConnectionState.Open)
-                    dbc.Open();
-
-                using (SqliteCommand cmd = new SqliteCommand(CMDText, dbc.Connection))
+                AddKeyParameters(cmd, pk);
+                using (SqliteDataReader reader = cmd.ExecuteReader())
                 {
-                    if (pk.IsComposite)
-                    {
-                        foreach (int k in ((PrimaryKey)pk).CompositeKey)
-                        {
-                            cmd.Parameters.Add(new SqliteParameter("@pk" + idx.ToString(), k));
-                            idx++;
-                        }
-                    }
-                    else
-                        cmd.Parameters.Add(new SqliteParameter("@pk", pk.Key));
-                    using (SqliteDataReader reader = cmd.ExecuteReader())
-                    {
-                        if (reader.Read())
-                            entity = MapToObject.Execute(reader);
-                        else
-                            entity = null;
-                        logger.LogInformation($"FindByPK complete for {typeof(TEntity)} entity.");
-                    }
+                    return reader.Read() ? map.Execute(reader) : null;
                 }
-            }
-            catch (SqliteException ex)
-            {
-                logger.LogError(ex.Message);
-                return null;
-            }
-
-            return entity;
+            });
         }
         #endregion
 
         #region Add
-        protected object Add(TEntity entity, PrimaryKey pk)
+        protected object Add(string cmdText, IMapFromObject<TEntity> map, TEntity entity, PrimaryKey pk)
         {
-
-            object result = null;
-            int rows = 0;
-
-            try
+            return Execute<object>("Add", cmdText, true, cmd =>
             {
-                if (dbc.Connection.State != ConnectionState.Open)
-                    dbc.Open();
+                map.Execute(entity, cmd);
 
-                if (unitOfWork != null) unitOfWork.Enlist();
-                using (SqliteCommand cmd = new SqliteCommand(CMDText, dbc.Connection))
+                //If Composite, then returns rows added
+                if (pk.IsComposite)
+                    return cmd.ExecuteNonQuery();
+                //If Identity, then returns the new PK from SELECT last_insert_rowid()
+                else if (pk.IsIdentity)
+                    return cmd.ExecuteScalar();
+                //Else it's a natural key, so returns rows added
+                else
                 {
-                    if (SqlCommandType == Constants.DBCommandType.SPROC)
-                        cmd.CommandType = CommandType.StoredProcedure;
-                    MapFromObject.Execute(entity, cmd);
-
-                    //If Composite, then returns an array of objects
-                    if (pk.IsComposite)
-                    {
-                        //returns CompositeKey
-                        rows = cmd.ExecuteNonQuery();
-                        result = rows;
-                    }
-                    //If Identity, then it's numeric
-                    else if (pk.IsIdentity)
-                    {
-                        //returns PK
-                        result = cmd.ExecuteScalar();
-                    }
-                    //Else it's a natural key
-                    else
-                    {
-                        //returns rows updated and sets result to key
-                        cmd.Parameters.Add(new SqliteParameter("@pk", pk.Key));
-                        rows = cmd.ExecuteNonQuery();
-                        result = rows;
-                    }
+                    cmd.Parameters.Add(new SqliteParameter("@pk", pk.Key));
+                    return cmd.ExecuteNonQuery();
                 }
-            }
-            catch (SqliteException ex)
-            {
-                logger.LogError(ex.Message);
-            }
-            logger.LogInformation($"Add complete for {typeof(TEntity)} entity.");
-            return result;
+            });
         }
         #endregion
 
         #region Update
-        protected int Update(TEntity entity, IPrimaryKey pk)
+        protected int Update(string cmdText, IMapFromObject<TEntity> map, TEntity entity, IPrimaryKey pk)
         {
-            int rows = 0;
-
-            try
+            return Execute("Update", cmdText, true, cmd =>
             {
-                if (dbc.Connection.State != ConnectionState.Open)
-                    dbc.Open();
-
-                if (unitOfWork != null) unitOfWork.Enlist();
-                using (SqliteCommand cmd = new SqliteCommand(CMDText, dbc.Connection))
-                {
-                    if (SqlCommandType == Constants.DBCommandType.SPROC)
-                        cmd.CommandType = CommandType.StoredProcedure;
-                    MapFromObject.Execute(entity, cmd);
-                    cmd.Parameters.Add(new SqliteParameter("@pk", pk.Key));
-                    rows = cmd.ExecuteNonQuery();
-                }
-            }
-            catch (SqliteException ex)
-            {
-                logger.LogError(ex.Message);
-            }
-            logger.LogInformation($"Update complete for {typeof(TEntity)} entity.");
-            return rows;
+                map.Execute(entity, cmd);
+                cmd.Parameters.Add(new SqliteParameter("@pk", pk.Key));
+                return cmd.ExecuteNonQuery();
+            });
         }
         #endregion
 
         #region Delete
-        protected int Delete(IPrimaryKey pk)
+        protected int Delete(string cmdText, IPrimaryKey pk)
         {
-            int idx = 1;
-            int rows = 0;
-
-            try
+            return Execute("Delete", cmdText, true, cmd =>
             {
-                if (dbc.Connection.State != ConnectionState.Open)
-                    dbc.Open();
-
-                if (unitOfWork != null) unitOfWork.Enlist();
-                using (SqliteCommand cmd = new SqliteCommand(CMDText, dbc.Connection))
-                {
-                    if (pk.IsComposite)
-                    {
-                        foreach (int k in ((PrimaryKey)pk).CompositeKey)
-                        {
-                            cmd.Parameters.Add(new SqliteParameter("@pk" + idx.ToString(), k));
-                            idx++;
-                        }
-                    }
-                    else
-                        cmd.Parameters.Add(new SqliteParameter("@pk", pk.Key));
-
-                    rows = cmd.ExecuteNonQuery();
-                }
-            }
-            catch (SqliteException ex)
-            {
-                logger.LogError(ex.Message);
-            }
-            logger.LogInformation($"Delete complete for {typeof(TEntity)} entity.");
-            return rows;
+                AddKeyParameters(cmd, pk);
+                return cmd.ExecuteNonQuery();
+            });
         }
         #endregion
 
         #region ExecNonQuery
-        protected int ExecNonQuery(IList<SqliteParameter> p)
+        protected int ExecNonQuery(string cmdText, params SqliteParameter[] parms)
         {
-            int rows = 0;
-
-            try
+            return Execute("ExecNonQuery", cmdText, true, cmd =>
             {
-                if (dbc.Connection.State != ConnectionState.Open)
-                    dbc.Open();
-
-                using (SqliteCommand cmd = new SqliteCommand(CMDText, dbc.Connection))
-                {
-                    if (SqlCommandType == Constants.DBCommandType.SPROC)
-                        cmd.CommandType = CommandType.StoredProcedure;
-
-                    foreach (SqliteParameter s in p)
-                        cmd.Parameters.Add(s);
-
-                    //Returns an object, not an int
-                    rows = cmd.ExecuteNonQuery();
-                    logger.LogInformation("ExecNonQuery complete.");
-                }
-            }
-            catch (SqliteException ex)
-            {
-                logger.LogError(ex.Message);
-                rows = 0;
-            }
-
-            return rows;
+                cmd.Parameters.AddRange(parms);
+                return cmd.ExecuteNonQuery();
+            });
         }
         #endregion
 
         #region ExecJSONQuery
-        protected string ExecJSONQuery(IList<SqliteParameter> parms)
+        protected string ExecJSONQuery(string cmdText, params SqliteParameter[] parms)
         {
-            string result = String.Empty;
+            return Execute("ExecJSONQuery", cmdText, false, cmd =>
+            {
+                cmd.Parameters.AddRange(parms);
+                object json = cmd.ExecuteScalar();
+                return json is null || json is DBNull ? "[]" : (string)json;
+            });
+        }
+        #endregion
 
+        #region Command execution
+        //Writes start (or join) the unit of work transaction. Reads join it, if one has started, so they see uncommitted writes.
+        private T Execute<T>(string operation, string cmdText, bool enlist, Func<SqliteCommand, T> execute)
+        {
             try
             {
-                if (dbc.Connection.State != ConnectionState.Open)
-                    dbc.Open();
+                if (enlist && unitOfWork is not null && !unitOfWork.Enlist())
+                    throw new InvalidOperationException("Unable to enlist repository operation in unit of work.");
+                if (dbc.Connection.State != ConnectionState.Open && !dbc.Open())
+                    throw new InvalidOperationException("Unable to open the database connection.");
 
-                using (SqliteCommand cmd = new SqliteCommand(CMDText, dbc.Connection))
+                using (SqliteCommand cmd = new SqliteCommand(cmdText, dbc.Connection, unitOfWork?.Transaction))
                 {
-                    if (SqlCommandType == Constants.DBCommandType.SPROC)
-                        cmd.CommandType = CommandType.StoredProcedure;
-
-                    foreach (SqliteParameter parm in parms)
-                        cmd.Parameters.Add(parm);
-
-                    using (SqliteDataReader reader = cmd.ExecuteReader())
-                    {
-                        //Returns a string
-                        while (reader.Read())
-                            result += reader.GetString(0);
-                    }
-                    logger.LogInformation("ExecJSONQuery complete.");
+                    T result = execute(cmd);
+                    logger.LogInformation("{Operation} complete for {Entity} entity.", operation, typeof(TEntity).Name);
                     return result;
                 }
             }
             catch (SqliteException ex)
             {
-                logger.LogError(ex.Message);
-                return "{}";
+                logger.LogError(ex, "{Operation} failed for {Entity} entity.", operation, typeof(TEntity).Name);
+                throw;
             }
         }
-        #endregion
 
-        #region ExecStoredProc
-        protected int ExecStoredProc(IList<SqliteParameter> p)
+        private static void AddKeyParameters(SqliteCommand cmd, IPrimaryKey pk)
         {
-            throw new NotImplementedException();
+            if (pk.IsComposite)
+            {
+                int idx = 1;
+                foreach (object k in ((PrimaryKey)pk).CompositeKey)
+                {
+                    cmd.Parameters.Add(new SqliteParameter("@pk" + idx.ToString(), k));
+                    idx++;
+                }
+            }
+            else
+                cmd.Parameters.Add(new SqliteParameter("@pk", pk.Key));
         }
         #endregion
     }

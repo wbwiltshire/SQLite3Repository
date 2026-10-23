@@ -3,10 +3,8 @@
  *The class was generated from Database: BACS and Table: State.  *
 ******************************************************************************************************/
 using System;
-using System.Collections.Generic;
 using System.Data;
 using Microsoft.Data.Sqlite;
-using System.Text;
 using Microsoft.Extensions.Logging;
 using SQLite3Repository.Data.Interfaces;
 
@@ -45,38 +43,16 @@ namespace SQLite3Repository.Data.POCO
         public override State Execute(IDataReader reader)
         {
             State state = new State();
-            int ordinal = 0;
-            try
-            {
-                ordinal = reader.GetOrdinal("Id");
-                state.Id = reader.GetString(ordinal);
-                ordinal = reader.GetOrdinal("Name");
-                state.Name = reader.GetString(ordinal);
-                ordinal = reader.GetOrdinal("Active");
-                state.Active = reader.GetInt32(ordinal);
-                ordinal = reader.GetOrdinal("ModifiedDt");
-                state.ModifiedDt = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc).AddSeconds(reader.GetInt64(ordinal));
-                ordinal = reader.GetOrdinal("CreateDt");
-                state.CreateDt = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc).AddSeconds(reader.GetInt64(ordinal));
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex.Message);
-            }
+
+            state.Id = reader.GetString(reader.GetOrdinal("Id"));
+            state.Name = reader.GetString(reader.GetOrdinal("Name"));
+            state.Active = reader.GetInt32(reader.GetOrdinal("Active"));
+            state.ModifiedDt = Constants.FromUnixTime(reader.GetInt64(reader.GetOrdinal("ModifiedDt")));
+            state.CreateDt = Constants.FromUnixTime(reader.GetInt64(reader.GetOrdinal("CreateDt")));
             return state;
         }
     }
-    public class StateMapToObjectView : MapToObjectBase<State>, IMapToObject<State>
-    {
-        public StateMapToObjectView(ILogger l) : base(l)
-        {
-        }
 
-        public override State Execute(IDataReader reader)
-        {
-            throw new NotImplementedException();
-        }
-    }
     public class StateMapFromObject : MapFromObjectBase<State>, IMapFromObject<State>
     {
         public StateMapFromObject(ILogger l) : base(l)
@@ -85,17 +61,7 @@ namespace SQLite3Repository.Data.POCO
 
         public override void Execute(State state, SqliteCommand cmd)
         {
-            SqliteParameter parm;
-
-            try
-            {
-                parm = new SqliteParameter("@p1", state.Name);
-                cmd.Parameters.Add(parm);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex.Message);
-            }
+            cmd.Parameters.Add(new SqliteParameter("@p1", state.Name));
         }
     }
 }

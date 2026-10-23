@@ -28,7 +28,6 @@ namespace SQLite3Repository.Data.POCO
         public string Server { get; set; }
         public string Name { get; set; }
         public string ConnectionString { get; set; }
-        public string[] StoredProcedures { get; set; }
     }
 
 }

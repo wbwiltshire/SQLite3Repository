@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Threading.Tasks;
 using System.Linq;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Configuration;
 using SQLite3Repository.Data;
 using SQLite3Repository.Data.POCO;
 using SQLite3Repository.Data.Repository;
@@ -227,6 +225,8 @@ namespace Regression.Test
                 contact.Notes = updateString;
                 int rows = repos.Update(contact);
                 Assert.Equal(1, rows);
+                // Reads in the unit of work see its uncommitted writes
+                Assert.Equal(updateString, repos.FindByPK(new PrimaryKey() { Key = 11 }).Notes);
                 ICollection<Contact> contacts = repos.FindAll();
                 Assert.Null(contacts.Where(c => c.LastName == newContact.LastName && c.FirstName == newContact.FirstName).FirstOrDefault());
                 int key = (int)repos.Add(newContact);
@@ -259,6 +259,88 @@ namespace Regression.Test
                 Assert.True(uow.Rollback());
                 contact = repos.FindByPK(new PrimaryKey() { Key = 11 });
                 Assert.Equal(contact.Notes, oldNotes);
+            }
+        }
+
+        [Fact]
+        public void RollBackAddTest()
+        {
+            Contact newContact = new Contact()
+            {
+                FirstName = "New",
+                LastName = "RollbackUser",
+                CityId = 1
+            };
+
+            using (DBContext db = new DBContext(settings.Database.ConnectionString, logger))
+            {
+                UnitOfWork uow = new UnitOfWork(db, logger);
+                ContactRepository repos = new ContactRepository(settings, logger, uow, db);
+
+                int key = (int)repos.Add(newContact);
+                Assert.True(key > 0);
+                Assert.NotNull(repos.FindByPK(new PrimaryKey() { Key = key }));
+                Assert.True(uow.Rollback());
+                Assert.Null(repos.FindByPK(new PrimaryKey() { Key = key }));
+            }
+        }
+
+        [Fact]
+        public void TerminalLifecycleTest()
+        {
+            using (DBContext db = new DBContext(settings.Database.ConnectionString, logger))
+            {
+                UnitOfWork uow = new UnitOfWork(db, logger);
+                StateRepository repos = new StateRepository(settings, logger, uow, db);
+
+                // Nothing enlisted, so Save and Rollback are harmless
+                Assert.True(uow.Save());
+                Assert.True(uow.Rollback());
+
+                State state = repos.FindByPK(new PrimaryKey() { Key = "FL" });
+                string oldName = state.Name;
+                state.Name = "Florida(Lifecycle)";
+                Assert.Equal(1, repos.Update(state));
+                Assert.True(uow.Rollback());
+                // Repeated terminal calls don't begin, commit, or roll back a new transaction
+                Assert.True(uow.Rollback());
+                Assert.True(uow.Save());
+                Assert.Equal(oldName, repos.FindByPK(new PrimaryKey() { Key = "FL" }).Name);
+            }
+        }
+
+        [Fact]
+        public void DisposeDiscardsUncommittedWorkTest()
+        {
+            string updateString = "Discard this update.";
+            string oldNotes;
+
+            using (DBContext db = new DBContext(settings.Database.ConnectionString, logger))
+            {
+                UnitOfWork uow = new UnitOfWork(db, logger);
+                ContactRepository repos = new ContactRepository(settings, logger, uow, db);
+
+                Contact contact = repos.FindByPK(new PrimaryKey() { Key = 12 });
+                oldNotes = contact.Notes;
+                contact.Notes = updateString;
+                Assert.Equal(1, repos.Update(contact));
+            }
+
+            using (DBContext db = new DBContext(settings.Database.ConnectionString, logger))
+            {
+                ContactRepository repos = new ContactRepository(settings, logger, db);
+                Assert.Equal(oldNotes, repos.FindByPK(new PrimaryKey() { Key = 12 }).Notes);
+            }
+        }
+
+        [Fact]
+        public void UOWRequiresSameDBContextTest()
+        {
+            using (DBContext db = new DBContext(settings.Database.ConnectionString, logger))
+            using (DBContext otherDb = new DBContext(settings.Database.ConnectionString, logger))
+            {
+                UnitOfWork uow = new UnitOfWork(otherDb, logger);
+                Assert.Throws<ArgumentException>(() => new ContactRepository(settings, logger, uow, db));
             }
         }
     }

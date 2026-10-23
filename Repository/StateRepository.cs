@@ -1,9 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
-using System.Linq;
-using System.Text;
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using SQLite3Repository.Data;
 using SQLite3Repository.Data.Interfaces;
@@ -14,17 +10,14 @@ namespace SQLite3Repository.Data.Repository
 	public class StateRepository : RepositoryBase<State>, IRepository<State>
 	{
 		private const string FINDALLCOUNT_STMT = "SELECT COUNT(Id) FROM State WHERE Active=1;";
-		private const string FINDALL_STMT = "SELECT Id,Name,Active,ModifiedDt,CreateDt FROM State WHERE Active=1;";
-        private const string FINDALLPAGER_STMT = "SELECT Id,Name,Active,ModifiedDt,CreateDt FROM State WHERE Active=1 ORDER BY Id LIMIT {0} OFFSET {1};";
+		private const string FINDALL_STMT = "SELECT Id,Name,Active,ModifiedDt,CreateDt FROM State WHERE Active=1 ORDER BY Id;";
+        private const string FINDALLPAGER_STMT = "SELECT Id,Name,Active,ModifiedDt,CreateDt FROM State WHERE Active=1 @orderBy LIMIT @pageSize OFFSET @offset;";
         private const string FINDBYPK_STMT = "SELECT Id, Name, Active, ModifiedDt, CreateDt FROM State WHERE Id =@pk AND Active=1;";
         private const string ADD_STMT = "INSERT INTO State (Id,[Name],Active,ModifiedDt,CreateDt) VALUES(@pk, @p1, 1, strftime('%s','now'), strftime('%s','now'));";
         private const string UPDATE_STMT = "UPDATE State SET Name=@p1, ModifiedDt=strftime('%s','now') WHERE Id =@pk AND Active=1";
         private const string DELETE_STMT = "UPDATE State SET Active=0, ModifiedDt=strftime('%s','now') WHERE Id =@pk";
-        private const string ORDERBY_STMT = " ORDER BY ";
-        private const string ADD_PROC = "uspAddState";
-        private const string UPDATE_PROC = "uspUpdateState";
-        private const string JSON_PROC = "uspFindAllCityJson";
-        private const string JSON_STMT = "SELECT json_group_array(json_object('Id', Id, 'Name', [Name], 'Active', Active, 'ModifiedDt', datetime(ModifiedDt,'unixepoch'), 'CreateDt', datetime(CreateDt,'unixepoch'))) AS json_result FROM (SELECT Id,[Name],Active,ModifiedDt,CreateDt FROM State ORDER BY Id);";
+        //ISO 8601 UTC dates, so they deserialize directly to DateTime
+        private const string JSON_STMT = "SELECT json_group_array(json_object('Id', Id, 'Name', [Name], 'Active', Active, 'ModifiedDt', strftime('%Y-%m-%dT%H:%M:%SZ',ModifiedDt,'unixepoch'), 'CreateDt', strftime('%Y-%m-%dT%H:%M:%SZ',CreateDt,'unixepoch'))) AS json_result FROM (SELECT Id,[Name],Active,ModifiedDt,CreateDt FROM State WHERE Active=1 ORDER BY Id);";
 
         private ILogger logger;
 
@@ -40,66 +33,37 @@ namespace SQLite3Repository.Data.Repository
         private void Init(ILogger l)
         {
             logger = l;
-            //Mapper = new StateMapper();
-            OrderBy = "Id";
+            SortColumns.Add("Name");
         }
         #endregion
 
         #region FindAll
-        public override ICollection<State> FindAll()
+        public ICollection<State> FindAll()
         {
-            SqlCommandType = Constants.DBCommandType.SQL;
-            CMDText = FINDALL_STMT;
-            CMDText += ORDERBY_STMT + OrderBy;
-            MapToObject = new StateMapToObject(logger);
-            return base.FindAll();
+            return base.FindAll(FINDALL_STMT, new StateMapToObject(logger));
         }
         #endregion
 
         #region FindAll(IPager)
         public IPager<State> FindAll(IPager<State> pager)
 		{
-            SqlCommandType = Constants.DBCommandType.SQL;
-            CMDText = String.Format(FINDALLPAGER_STMT, pager.PageSize, pager.PageSize * pager.PageNbr);
-            //CMDText += ORDERBY_STMT + OrderBy;
-            MapToObject = new StateMapToObject(logger);
-            pager.Entities = base.FindAll();
-            CMDText = FINDALLCOUNT_STMT;
-            pager.RowCount = base.FindAllCount();
-            return pager;
+            return base.FindAllPaged(FINDALLPAGER_STMT, FINDALLCOUNT_STMT, new StateMapToObject(logger), pager);
         }
 		#endregion
 
 		#region FindByPK(IPrimaryKey pk)
-		public override State FindByPK(IPrimaryKey pk)
+		public State FindByPK(IPrimaryKey pk)
 		{
-            SqlCommandType = Constants.DBCommandType.SQL;
-            CMDText = FINDBYPK_STMT;
-            MapToObject = new StateMapToObject(logger);
-            return base.FindByPK(pk);
+            return base.FindByPK(FINDBYPK_STMT, new StateMapToObject(logger), pk);
         }
 		#endregion
 
 		#region Add
 		public object Add(State entity)
         {
-            string storedProcedure = String.Empty;
-            object result;
-
-            storedProcedure = Settings.Database.StoredProcedures.FirstOrDefault(p => p == ADD_PROC);
-            if (storedProcedure == null)
-            {
-                SqlCommandType = Constants.DBCommandType.SQL;
-                CMDText = ADD_STMT;
-            }
-            else
-            {
-                SqlCommandType = Constants.DBCommandType.SPROC;
-                CMDText = storedProcedure;
-            }
-            MapFromObject = new StateMapFromObject(logger);
-            result = base.Add(entity, entity.PK);
-            if (result != null && (int)result == 1)
+            //Natural key, so returns the key when the row is added
+            object result = base.Add(ADD_STMT, new StateMapFromObject(logger), entity, entity.PK);
+            if (result is int rows && rows == 1)
                 return entity.PK.Key;
             else
                 return String.Empty;
@@ -109,51 +73,21 @@ namespace SQLite3Repository.Data.Repository
 		#region Update
 		public int Update(State entity)
         {
-            string storedProcedure = String.Empty;
-
-            storedProcedure = Settings.Database.StoredProcedures.FirstOrDefault(p => p == UPDATE_PROC);
-            if (storedProcedure == null)
-            {
-                SqlCommandType = Constants.DBCommandType.SQL;
-                CMDText = UPDATE_STMT;
-            }
-            else
-            {
-                SqlCommandType = Constants.DBCommandType.SPROC;
-                CMDText = storedProcedure;
-            }
-            MapFromObject = new StateMapFromObject(logger);
-            return base.Update(entity, entity.PK);
+            return base.Update(UPDATE_STMT, new StateMapFromObject(logger), entity, entity.PK);
         }
 		#endregion
 
 		#region Delete
 		public int Delete(PrimaryKey pk)
         {
-            SqlCommandType = Constants.DBCommandType.SQL;
-            CMDText = DELETE_STMT;
-            return base.Delete(pk);
+            return base.Delete(DELETE_STMT, pk);
         }
         #endregion
 
         #region GetJSON
         public string GetJSON()
         {
-            string storedProcedure = String.Empty;
-            IList<SqliteParameter> parms = new List<SqliteParameter>();
-
-            storedProcedure = Settings.Database.StoredProcedures.FirstOrDefault(p => p == JSON_PROC);
-            if (storedProcedure == null)
-            {
-                SqlCommandType = Constants.DBCommandType.SQL;
-                CMDText = JSON_STMT;
-            }
-            else
-            {
-                SqlCommandType = Constants.DBCommandType.SPROC;
-                CMDText = storedProcedure;
-            }
-            return ExecJSONQuery(parms);
+            return base.ExecJSONQuery(JSON_STMT);
         }
         #endregion
     }

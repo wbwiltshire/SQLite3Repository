@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Data;
 using Microsoft.Data.Sqlite;
-using System.Linq;
-using System.Text;
 
 namespace SQLite3Repository.Data.Interfaces
 {

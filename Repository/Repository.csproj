@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
-    <AssemblyName>SQLite3RepositoryData..Repository</AssemblyName>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>SQLite3Repository.Repository</AssemblyName>
     <RootNamespace>SQLite3Repository.Data.Repository</RootNamespace>
   </PropertyGroup>
 

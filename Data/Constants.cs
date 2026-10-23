@@ -1,11 +1,15 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace SQLite3Repository.Data
 {
-    public class Constants
+    public enum SQLOrderBy { ASC = 1, DESC = 2 };
+
+    public static class Constants
     {
-        public enum DBCommandType { SQL = 1, VIEW = 2, SPROC = 3 };
+        //SQLite stores DateTimes as INTEGER seconds since the Unix epoch (UTC)
+        public static DateTime FromUnixTime(long seconds)
+        {
+            return DateTime.UnixEpoch.AddSeconds(seconds);
+        }
     }
 }

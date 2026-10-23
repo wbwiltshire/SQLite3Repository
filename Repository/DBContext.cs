@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Data;
 using Microsoft.Data.Sqlite;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using System.Text;
 using Microsoft.Extensions.Logging;
 using SQLite3Repository.Data.Interfaces;
 
@@ -12,25 +9,16 @@ namespace SQLite3Repository.Data.Repository
 
     public class DBContext : IDBContext
     {
-        private ILogger logger;
-        private SqliteConnection connection = null;
-        private bool isOpen = false;
+        private readonly ILogger logger;
+        private readonly SqliteConnection connection;
 
         // ctor
         public DBContext(string connectionString, ILogger l)
         {
             logger = l;
-            isOpen = false;
-            try
-            {
-                connection = new SqliteConnection(connectionString);
-                logger.LogInformation($"ConnectionString: {connectionString}");
-
-            }
-            catch (SqliteException ex)
-            {
-                logger.LogError(ex.Message);
-            }
+            //Throws ArgumentException for an invalid connection string
+            connection = new SqliteConnection(connectionString);
+            logger.LogInformation("DBContext created for data source {DataSource}.", connection.DataSource);
         }
 
         public SqliteConnection Connection
@@ -40,41 +28,35 @@ namespace SQLite3Repository.Data.Repository
 
         public bool Open()
         {
-            //Only create a connection, if we don't already have one
+            //Only open the connection, if it isn't already open
             if (connection.State != ConnectionState.Open)
             {
                 try
                 {
                     connection.Open();
-                    isOpen = true;
                     logger.LogInformation("DBContext connection opened.");
                 }
                 catch (SqliteException ex)
                 {
-                    logger.LogError(ex.Message);
+                    logger.LogError(ex, "Unable to open DBContext connection.");
                 }
             }
             else
                 logger.LogInformation("Using open DBContext connection.");
 
-            return isOpen;
+            return connection.State == ConnectionState.Open;
         }
 
         public void Close()
         {
             try
             {
-                if (connection != null)
-                {
-                    connection.Close();
-                    isOpen = false;
-                    logger.LogInformation("DBConnection closed.");
-                }
+                connection.Close();
+                logger.LogInformation("DBContext connection closed.");
             }
             catch (SqliteException ex)
             {
-                logger.LogError(ex.Message);
-
+                logger.LogError(ex, "Unable to close DBContext connection.");
             }
         }
 
@@ -86,8 +68,8 @@ namespace SQLite3Repository.Data.Repository
             {
                 if (disposing)
                 {
-                    if (connection != null)
-                        connection.Close();
+                    //Closing the connection rolls back any uncommitted transaction
+                    connection.Dispose();
                     logger.LogInformation("DBContext connection closed via dispose.");
                 }
                 this.disposed = true;

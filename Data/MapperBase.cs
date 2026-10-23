@@ -11,7 +11,6 @@ namespace SQLite3Repository.Data
 {
     public class PrimaryKey : IPrimaryKey
     {
-        private string tempString = String.Empty;
         public object Key { get; set; }
         public object[] CompositeKey { get; set; }
         public bool IsIdentity { get; set; }
@@ -27,11 +26,7 @@ namespace SQLite3Repository.Data
         public override string ToString()
         {
             if (IsComposite)
-            {
-                foreach (object k in CompositeKey)
-                    tempString += k.ToString() + "|";
-                return $"|{tempString}{IsComposite}";
-            }
+                return $"|{String.Join("|", CompositeKey)}|{IsComposite}";
             else
                 return $"|{Key}|{IsIdentity}";
         }
